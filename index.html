@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control de staffing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{--ink:#061F32;--ink2:#4A5C6B;--bg:#F4F7FA;--paper:#FFFFFF;--line:#D5E0EA;--blue:#0A7FC0;--acc:#00A7F2;--gold:#F8BC3B;--goldt:#FDF1D2;--redt:#FBE3E3;--red:#8A1C1C;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--ink:#E8F1F8;--ink2:#9FB3C6;--bg:#0B1624;--paper:#12233A;--line:#23405E;--blue:#4CC3F5;--acc:#00A7F2;--goldt:#3A2F12;--redt:#3D1C1C;--red:#F5B5B5;color-scheme:dark}}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,Helvetica,sans-serif;min-height:100%}
+h1,h2{font-family:Georgia,'Times New Roman',serif;font-weight:700;margin:0}
+h1{font-size:28px;line-height:1.15}
+.wrap{display:grid;grid-template-columns:320px 1fr;gap:40px;max-width:1200px;margin:0 auto;padding:40px 24px}
+@media (max-width:860px){.wrap{grid-template-columns:1fr;gap:24px;padding:24px 16px}}
+aside p.lede{color:var(--ink2);margin:12px 0 24px}
+label{display:block;font-size:13px;color:var(--ink2);margin-bottom:16px}
+input[type=date],input[type=search],select{display:block;width:100%;margin-top:6px;padding:8px 10px;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:4px}
+.drop{position:relative;border:1.5px dashed var(--blue);border-radius:6px;padding:22px 16px;text-align:center;color:var(--ink);background:var(--paper);cursor:pointer}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop:focus-within{outline:2px solid var(--acc);outline-offset:3px}
+.chk{display:flex;gap:8px;align-items:flex-start;color:var(--ink)}
+.chk input{margin-top:4px}
+#status{min-height:22px;font-size:13px;color:var(--ink2);margin:8px 0 16px}
+#status.err{color:var(--red)}
+.kpis{display:grid;gap:14px;margin:8px 0 24px}
+.kpi b{display:block;font-family:Georgia,serif;font-size:40px;line-height:1;color:var(--blue)}
+.kpi span{font-size:13px;color:var(--ink2)}
+button{font:inherit;font-weight:700;padding:11px 16px;border:0;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer;width:100%}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,.tabs button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
+.tabs button{width:auto;background:none;color:var(--ink2);border-radius:0;padding:10px 14px;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--blue)}
+h2{font-size:22px;margin-bottom:4px}
+.note{color:var(--ink2);font-size:14px;margin:0 0 12px}
+.count{font-size:13px;color:var(--ink2);margin:0 0 10px}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-bottom:20px}
+.filters label{margin:0}
+@media (max-width:640px){.filters{grid-template-columns:1fr}}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media (max-width:700px){.charts{grid-template-columns:1fr}}
+.chart{position:relative;height:280px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px}
+.tablewrap{overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
+th{font-weight:700;color:var(--ink2);font-size:13px;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:var(--bg);color:var(--ink2)}
+.badge.hoy{background:var(--gold);color:#061F32}
+.badge.venc{background:var(--redt);color:var(--red)}
+.empty{padding:40px 20px;text-align:center;color:var(--ink2);background:var(--paper);border:1px dashed var(--line);border-radius:6px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <aside>
+    <h1>Control de staffing</h1>
+    <p class="lede">Puja l'Excel de staffing i obtén les demandes, les valoracions CXB i els projectes que vencen en les dues setmanes següents.</p>
+    <label class="drop">
+      <span id="fname">Arrossega l'Excel aquí o tria un fitxer</span>
+      <input type="file" id="file" accept=".xlsx,.xlsm">
+    </label>
+    <label>Data de fi (inclosa)
+      <input type="date" id="endd">
+    </label>
+    <input type="hidden" id="rev">
+    <label class="chk"><input type="checkbox" id="overdue"> Incloure assignacions ja vençudes</label>
+    <div id="status" role="status"></div>
+    <div class="kpis">
+      <div class="kpi"><b id="k1">–</b><span>Demandes que vencen en el període</span></div>
+      <div class="kpi"><b id="k2">–</b><span>Valoracions CXB pendents</span></div>
+      <div class="kpi"><b id="k3">–</b><span>Projectes actius que vencen</span></div>
+    </div>
+    <button id="dl" disabled>Descarregar Excel</button>
+  </aside>
+  <section>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="asig" aria-selected="true">Assignacions</button>
+      <button role="tab" data-tab="cxb" aria-selected="false">Valoració CXB</button>
+      <button role="tab" data-tab="prj" aria-selected="false">Projectes</button>
+    </div>
+    <div id="filters"></div>
+    <div id="charts" class="charts"></div>
+    <div id="out"></div>
+  </section>
+</main>
+<script>
+const DAY = 86400000;
+const PAL = ['#0A7FC0','#00A7F2','#061F32','#F8BC3B','#3478AB','#1D4769','#7BC8E8','#E0A100'];
+const TERMS = {hoy:{l:'Vence avui',c:'#F8BC3B'}, queden:{l:'Queden dies',c:'#0A7FC0'}, venc:{l:'Vençudes',c:'#8A1C1C'}};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let DATA = null, R = null, TAB = 'asig', CH = [];
+let DL = null;
+const FS = {asig:{q:'',mgr:'',term:''}, cxb:{q:'',mgr:'',term:''}, prj:{q:'',mgr:'',term:''}};
+
+function day(v){
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return (Math.floor(v) - 25569) * DAY;
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d)) return null;
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+}
+const fmt = f => f == null ? '–' : new Date(f).toLocaleDateString('ca-ES', {timeZone: 'UTC'});
+const val = x => (x === '' || x == null) ? '–' : x;
+const mg = v => String(v ?? '').trim() || 'Sense manager';
+const plain = cells => cells.join(' ').replace(/<[^>]+>/g, ' ').toLowerCase();
+
+function termini(f){
+  const n = Math.round((f - R.rev) / DAY);
+  if (n === 0) return {t: 'Vence avui', c: 'hoy', k: 'hoy'};
+  if (n < 0) return {t: 'Vençuda fa ' + (-n) + ' d', c: 'venc', k: 'venc'};
+  return {t: 'Queden ' + n + ' d', c: '', k: 'queden'};
+}
+const badge = t => '<span class="badge ' + t.c + '">' + esc(t.t) + '</span>';
+
+function compute(){
+  if (!DATA) return;
+  const [y, m, d] = $('#rev').value.split('-').map(Number);
+  const rev = Date.UTC(y, m - 1, d);
+  const [ey, em, ed] = $('#endd').value.split('-').map(Number);
+  const end = Date.UTC(ey, em - 1, ed);
+  if (end < rev) { DATA_ERR('La data de fi és anterior a la data de revisió.'); return; }
+  const inWin = f => f != null && f >= rev && f <= end;
+  const over = $('#overdue').checked;
+  const T = DATA.tm.filter(r => String(r['T&M / Proyecto']).trim() === 'T&M');
+  R = {rev, end};
+  R.asig = T.filter(r => String(r['Estado']).trim() === 'ASIGNADO')
+    .map(r => ({r, f: day(r['Fecha Fin'])}))
+    .filter(x => inWin(x.f) || (over && x.f != null && x.f < rev))
+    .sort((a, b) => a.f - b.f);
+  R.asigWin = R.asig.filter(x => inWin(x.f)).length;
+  R.cxb = T.filter(r => String(r['Estado']).trim() === 'VALORACION CXB').map(r => ({r, s: day(r['Fecha Solicitud'])}));
+  R.prj = DATA.pr.map(r => ({r, ini: day(r['Fecha inicio']), f: day(r['Fecha fin'])}))
+    .filter(x => x.ini != null && x.f != null && x.ini <= rev && x.f >= rev && inWin(x.f))
+    .sort((a, b) => a.f - b.f);
+  $('#k1').textContent = R.asigWin;
+  $('#k2').textContent = R.cxb.length;
+  $('#k3').textContent = R.prj.length;
+  $('#dl').disabled = false;
+  render();
+}
+
+function rowsFor(tab){
+  if (tab === 'asig') {
+    const X = R.asig.map(x => { const t = termini(x.f); const cells = [
+      esc(val(x.r['ID'])), esc(val(x.r['ID Caixa'])), esc(mg(x.r['Manager o Resp.'])), esc(val(x.r['Candidatos en curso'])), fmt(x.f), esc(x.r['Estado']), badge(t)];
+      return {cells, s: plain(cells), mgr: mg(x.r['Manager o Resp.']), term: t.k,
+        raw: [x.r['ID'], x.r['ID Caixa'], x.r['Manager o Resp.'], x.r['Candidatos en curso'], new Date(x.f), x.r['Estado'], t.t]}; });
+    return {H: ['ID','ID Caixa','Manager responsable','Candidats en curs','Data de fi','Estat','Termini'], X, name: 'Control de asignaciones'};
+  }
+  if (tab === 'cxb') {
+    const X = R.cxb.map(x => { const cells = [
+      esc(val(x.r['ID'])), esc(val(x.r['ID Caixa'])), fmt(x.s), esc(mg(x.r['Manager o Resp.']))];
+      return {cells, s: plain(cells), mgr: mg(x.r['Manager o Resp.']), term: '', month: x.s == null ? 'Sense data' : new Date(x.s).toISOString().slice(0, 7),
+        raw: [x.r['ID'], x.r['ID Caixa'], x.s == null ? '' : new Date(x.s), x.r['Manager o Resp.']]}; });
+    return {H: ['ID','ID Caixa','Data de sol·licitud','Manager o Resp.'], X, name: 'Control de Valoracion CXB'};
+  }
+  const X = R.prj.map(x => { const t = termini(x.f); const cells = [
+    esc(val(x.r['ID caixa'])), esc(mg(x.r['Responsable'])), fmt(x.f), esc(val(x.r['Nombre proyecto'])), badge(t)];
+    return {cells, s: plain(cells), mgr: mg(x.r['Responsable']), term: t.k,
+      raw: [x.r['ID caixa'], x.r['Responsable'], new Date(x.f), x.r['Nombre proyecto'], t.t]}; });
+  return {H: ['ID Caixa','Responsable','Data de fi','Projecte','Termini'], X, name: 'Control de proyectos'};
+}
+
+function filtered(X){
+  const f = FS[TAB], q = f.q.trim().toLowerCase();
+  return X.filter(x => (!q || x.s.includes(q)) && (!f.mgr || x.mgr === f.mgr) && (!f.term || x.term === f.term));
+}
+
+function table(headers, rows){
+  if (!rows.length) return '<div class="empty">Cap resultat amb aquests filtres. Prova una altra cerca o data de revisió.</div>';
+  return '<div class="tablewrap"><table><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') +
+    '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') +
+    '</tbody></table></div>';
+}
+
+function controls(){
+  const box = $('#filters');
+  const {X} = rowsFor(TAB), f = FS[TAB];
+  const mgrs = [...new Set(X.map(x => x.mgr))].sort();
+  if (f.mgr && !mgrs.includes(f.mgr)) f.mgr = '';
+  const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(l) + '</option>';
+  box.innerHTML = '<div class="filters">' +
+    '<label>Cerca<input type="search" id="q" placeholder="ID, manager, projecte…" value="' + esc(f.q) + '"></label>' +
+    '<label>Manager<select id="mgr">' + opt('', 'Tots', f.mgr) + mgrs.map(m => opt(m, m, f.mgr)).join('') + '</select></label>' +
+    (TAB !== 'cxb' ? '<label>Termini<select id="term">' + opt('', 'Tots', f.term) + opt('hoy', 'Vence avui', f.term) + opt('queden', 'Queden dies', f.term) + opt('venc', 'Vençudes', f.term) + '</select></label>' : '') +
+    '</div>';
+  $('#q').addEventListener('input', e => { f.q = e.target.value; updateView(); });
+  $('#mgr').addEventListener('change', e => { f.mgr = e.target.value; updateView(); });
+  const t = $('#term'); if (t) t.addEventListener('change', e => { f.term = e.target.value; updateView(); });
+}
+
+function countBy(F, key){ const m = {}; F.forEach(x => { const k = key(x); m[k] = (m[k] || 0) + 1; }); return m; }
+
+function charts(F){
+  CH.forEach(c => c.destroy()); CH = [];
+  const box = $('#charts');
+  if (typeof Chart === 'undefined') { box.innerHTML = '<p class="note">Els gràfics no estan disponibles ara mateix.</p>'; return; }
+  if (!F.length) { box.innerHTML = '<div class="empty">Cap registre per graficar amb aquests filtres.</div>'; return; }
+  const ink = css('--ink'), line = css('--line');
+  const cfg = TAB === 'cxb'
+    ? [{t: 'Peticions per manager', k: x => x.mgr, type: 'bar', h: true, sort: true},
+       {t: 'Peticions per mes de sol·licitud', k: x => x.month, type: 'bar'}]
+    : [{t: TAB === 'asig' ? 'Demandes per manager' : 'Projectes per responsable', k: x => x.mgr, type: 'bar', h: true, sort: true},
+       {t: 'Terminis', k: x => x.term, type: 'doughnut'}];
+  box.innerHTML = cfg.map((c, i) => '<div class="chart"><canvas id="ch' + i + '" role="img" aria-label="' + esc(c.t) + '"></canvas></div>').join('');
+  cfg.forEach((c, i) => {
+    const m = countBy(F, c.k);
+    let labels = Object.keys(m);
+    if (c.sort) labels.sort((a, b) => m[b] - m[a] || a.localeCompare(b)); else labels.sort();
+    const data = labels.map(l => m[l]);
+    const isD = c.type === 'doughnut';
+    const bg = isD ? labels.map(l => TERMS[l] ? TERMS[l].c : '#999') : labels.map((_, j) => PAL[j % PAL.length]);
+    const names = isD ? labels.map(l => TERMS[l] ? TERMS[l].l : l) : labels;
+    CH.push(new Chart($('#ch' + i), {type: c.type,
+      data: {labels: names, datasets: [{data, backgroundColor: bg, borderRadius: isD ? 0 : 4}]},
+      options: {responsive: true, maintainAspectRatio: false, indexAxis: c.h ? 'y' : 'x',
+        plugins: {title: {display: true, text: c.t, color: ink, font: {family: 'Georgia', size: 14}},
+                  legend: {display: isD, labels: {color: ink}}},
+        scales: isD ? undefined : {
+          x: {ticks: {color: ink, precision: 0, maxRotation: 45}, grid: {display: !c.h, color: line}, beginAtZero: true},
+          y: {ticks: {color: ink, autoSkip: false}, grid: {display: c.h ? true : false, color: line}, beginAtZero: true}}}}));
+  });
+}
+
+function updateView(){
+  if (!R) return;
+  const {H, X} = rowsFor(TAB), F = filtered(X);
+  const titles = {asig: 'Demandes assignades que vencen', cxb: 'Peticions en valoració CXB', prj: 'Projectes actius que vencen'};
+  const notes = {
+    asig: 'T&M, estat ASIGNADO, data de fi entre la revisió i 14 dies després. Ordenades per data de fi.',
+    cxb: 'Demandes T&M en estat VALORACION CXB, amb la data de sol·licitud.',
+    prj: 'Projectes actius amb data de fi dins del període. Ordenats per data de fi.'};
+  $('#out').innerHTML = '<h2>' + titles[TAB] + '</h2><p class="note">' + notes[TAB] + '</p>' +
+    '<p class="count">' + F.length + ' de ' + X.length + ' registres</p>' + table(H, F.map(x => x.cells));
+  charts(F);
+}
+
+function render(){
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === TAB)));
+  if (!R) { $('#out').innerHTML = '<div class="empty">Puja un Excel de staffing per començar.</div>'; $('#filters').innerHTML = ''; $('#charts').innerHTML = ''; return; }
+  controls(); updateView();
+}
+
+async function load(file){
+  $('#status').className = ''; $('#status').textContent = 'Llegint el fitxer…';
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), {type: 'array'});
+    const t = wb.Sheets['Detalle T&M'], p = wb.Sheets['Detalle proyectos asignados'];
+    if (!t || !p) throw new Error('Falten les pestanyes "Detalle T&M" o "Detalle proyectos asignados".');
+    DATA = {tm: XLSX.utils.sheet_to_json(t, {defval: ''}), pr: XLSX.utils.sheet_to_json(p, {defval: ''})};
+    if (!DATA.tm.length || !('Estado' in DATA.tm[0]) || !('Fecha Fin' in DATA.tm[0]))
+      throw new Error('No trobo les columnes "Estado" i "Fecha Fin" a "Detalle T&M".');
+    $('#fname').textContent = file.name;
+    $('#status').textContent = 'Fitxer carregat: ' + DATA.tm.length + ' files de demandes i ' + DATA.pr.length + ' de projectes.';
+    compute();
+  } catch (e) {
+    DATA = null; $('#dl').disabled = true;
+    $('#status').className = 'err'; $('#status').textContent = e.message || 'No s\'ha pogut llegir el fitxer.';
+  }
+}
+
+function exportXlsx(){
+  if (!R) return;
+  const wb = XLSX.utils.book_new();
+  ['asig', 'cxb', 'prj'].forEach(tab => {
+    const {H, X, name} = rowsFor(tab);
+    const ws = XLSX.utils.aoa_to_sheet([H, ...X.map(x => x.raw)]);
+    ws['!cols'] = H.map(() => ({wch: 22}));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  });
+  const data = XLSX.write(wb, {bookType: 'xlsx', type: 'array'});
+  const filename = 'Control_Staffing_' + $('#rev').value + '.xlsx';
+  if (!DL) { XLSX.writeFile(wb, filename); $('#status').className = ''; $('#status').textContent = 'Excel descarregat.'; return; }
+  DL.save({filename, data})
+    .then(() => { $('#status').className = ''; $('#status').textContent = 'Excel descarregat.'; })
+    .catch(e => { $('#status').className = 'err'; $('#status').textContent = (e && e.code === 'declined') ? 'Descàrrega cancel·lada.' : 'No s\'ha pogut descarregar el fitxer.'; });
+}
+
+const now = new Date();
+$('#rev').value = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+$('#endd').value = new Date(new Date($('#rev').value).getTime() + 14 * DAY).toISOString().slice(0, 10);
+$('#file').addEventListener('change', e => e.target.files[0] && load(e.target.files[0]));
+$('#endd').addEventListener('change', () => { compute(); });
+function DATA_ERR(msg){ $('#status').className = 'err'; $('#status').textContent = msg; }
+$('#overdue').addEventListener('change', compute);
+$('#dl').addEventListener('click', exportXlsx);
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { TAB = b.dataset.tab; render(); }));
+document.querySelectorAll('.drop').forEach(el => {
+  el.addEventListener('dragover', e => e.preventDefault());
+  el.addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) load(f); });
+});
+(async () => { try { DL = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { DL = null; } })();
+render();
+</script>
+</body>
+</html>

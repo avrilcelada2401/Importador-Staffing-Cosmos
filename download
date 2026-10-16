@@ -1,0 +1,10 @@
+# Datos reales de staffing: no subir nunca al repositorio
+*.xlsx
+*.xlsm
+*.csv
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
